@@ -5,12 +5,14 @@ import (
 
 	gliderssh "github.com/gliderlabs/ssh"
 
+	"github.com/adinahhh/portfolio-ssh/cmd/internal/key"
 	"github.com/adinahhh/portfolio-ssh/cmd/internal/session"
 )
 
 func main() {
 	handler := session.NewHandler(session.Config{
-		AppPath: "/Users/adinah/Projects/portfolio/.venv/bin/portfolio",
+		AppPath:  "/Users/adinah/Projects/portfolio/.venv/bin/portfolio",
+		KeyStore: key.NewFileStore("data/known_keys.txt"),
 	})
 
 	srv := &gliderssh.Server{
