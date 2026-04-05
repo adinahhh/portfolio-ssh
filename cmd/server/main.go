@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	gliderssh "github.com/gliderlabs/ssh"
@@ -41,9 +42,10 @@ func main() {
 		log.Fatalf("listen: %v", err)
 	}
 
-	// Allow 5 connection attempts per IP per minute.
+	// Allow 5 connection attempts per IP per minute, max 10 concurrent connections.
 	limiter := ratelimit.New(5, time.Minute)
-	limited := &rateLimitedListener{Listener: ln, limiter: limiter}
+	connLimiter := ratelimit.NewConnLimiter(10)
+	limited := &rateLimitedListener{Listener: ln, limiter: limiter, connLimiter: connLimiter}
 
 	log.Println("SSH server listening on :2222")
 	log.Fatal(srv.Serve(limited))
@@ -51,7 +53,8 @@ func main() {
 
 type rateLimitedListener struct {
 	net.Listener
-	limiter *ratelimit.Limiter
+	limiter     *ratelimit.Limiter
+	connLimiter *ratelimit.ConnLimiter
 }
 
 func (l *rateLimitedListener) Accept() (net.Conn, error) {
@@ -61,12 +64,30 @@ func (l *rateLimitedListener) Accept() (net.Conn, error) {
 			return nil, err
 		}
 		ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
-		if l.limiter.Allow(ip) {
-			return conn, nil
+		if !l.limiter.Allow(ip) {
+			log.Printf("rate limit exceeded for %s, dropping connection", ip)
+			conn.Close()
+			continue
 		}
-		log.Printf("rate limit exceeded for %s, dropping connection", ip)
-		conn.Close()
+		if !l.connLimiter.Acquire() {
+			log.Printf("connection limit reached, dropping connection from %s", ip)
+			conn.Close()
+			continue
+		}
+		return &trackedConn{Conn: conn, release: l.connLimiter.Release}, nil
 	}
+}
+
+// trackedConn calls Release when the connection is closed, freeing the slot.
+type trackedConn struct {
+	net.Conn
+	release func()
+	once    sync.Once
+}
+
+func (c *trackedConn) Close() error {
+	c.once.Do(c.release)
+	return c.Conn.Close()
 }
 
 func loadOrGenerateHostKey(path string) (gossh.Signer, error) {

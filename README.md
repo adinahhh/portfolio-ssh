@@ -60,4 +60,4 @@ printf '%s' "<challenge>" | ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file
 - Challenges are short-lived and single-use
 - Rate limiting: max 5 connections per IP per minute
 - Session timeout: 5 minutes to complete authentication
-- connection limits
+- Connection limit: max 10 concurrent connections
