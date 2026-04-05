@@ -12,7 +12,7 @@ import (
 func main() {
 	handler := session.NewHandler(session.Config{
 		AppPath:  "/Users/adinah/Projects/portfolio/.venv/bin/portfolio",
-		KeyStore: key.NewFileStore("data/known_keys.txt"),
+		KeyStore: key.NewFileStore("cmd/internal/data/known_keys.txt"),
 	})
 
 	srv := &gliderssh.Server{
