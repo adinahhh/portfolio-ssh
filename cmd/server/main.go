@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	gliderssh "github.com/gliderlabs/ssh"
@@ -59,8 +62,29 @@ func main() {
 	connLimiter := ratelimit.NewConnLimiter(10)
 	limited := &rateLimitedListener{Listener: ln, limiter: limiter, connLimiter: connLimiter}
 
-	log.Println("SSH server listening on :2222")
-	log.Fatal(srv.Serve(limited))
+	// Start serving in the background
+	serveErr := make(chan error, 1)
+	go func() {
+		log.Printf("SSH server listening on port %s", addr)
+		serveErr <- srv.Serve(limited)
+	}()
+
+	// Wait for SIGINT (Ctrl + C) or SIGTERM (systemd stop) to gracefully shut down the server
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case err := <-serveErr:
+		log.Fatalf("server error: %v", err)
+	case <-ctx.Done():
+		log.Println("shutting down server, waiting for active sessions to finish...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("shutdown error: %v", err)
+		}
+		log.Println("server stopped")
+	}
 }
 
 type rateLimitedListener struct {
