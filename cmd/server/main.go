@@ -5,12 +5,15 @@ import (
 	"crypto/rand"
 	"encoding/pem"
 	"log"
+	"net"
 	"os"
+	"time"
 
 	gliderssh "github.com/gliderlabs/ssh"
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/adinahhh/portfolio-ssh/cmd/internal/key"
+	"github.com/adinahhh/portfolio-ssh/cmd/internal/ratelimit"
 	"github.com/adinahhh/portfolio-ssh/cmd/internal/session"
 )
 
@@ -33,12 +36,40 @@ func main() {
 		HostSigners: []gliderssh.Signer{signer},
 	}
 
+	ln, err := net.Listen("tcp", ":2222")
+	if err != nil {
+		log.Fatalf("listen: %v", err)
+	}
+
+	// Allow 5 connection attempts per IP per minute.
+	limiter := ratelimit.New(5, time.Minute)
+	limited := &rateLimitedListener{Listener: ln, limiter: limiter}
+
 	log.Println("SSH server listening on :2222")
-	log.Fatal(srv.ListenAndServe())
+	log.Fatal(srv.Serve(limited))
+}
+
+type rateLimitedListener struct {
+	net.Listener
+	limiter *ratelimit.Limiter
+}
+
+func (l *rateLimitedListener) Accept() (net.Conn, error) {
+	for {
+		conn, err := l.Listener.Accept()
+		if err != nil {
+			return nil, err
+		}
+		ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+		if l.limiter.Allow(ip) {
+			return conn, nil
+		}
+		log.Printf("rate limit exceeded for %s, dropping connection", ip)
+		conn.Close()
+	}
 }
 
 func loadOrGenerateHostKey(path string) (gossh.Signer, error) {
-	// Load existing key.
 	if data, err := os.ReadFile(path); err == nil {
 		block, _ := pem.Decode(data)
 		if block != nil {
@@ -46,7 +77,6 @@ func loadOrGenerateHostKey(path string) (gossh.Signer, error) {
 		}
 	}
 
-	// Generate a new ed25519 key and persist it.
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, err

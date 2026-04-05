@@ -57,10 +57,7 @@ printf '%s' "<challenge>" | ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file
 #### Quick Notes
 - This server requires proof-of-possession of an SSH private key.
 - No passwords or web-based onboarding are used
-- Challenges are:
-    - short-lived
-    - single-use
-
-- rate limiting
+- Challenges are short-lived and single-use
+- Rate limiting: max 5 connections per IP per minute
+- Session timeout: 5 minutes to complete authentication
 - connection limits
-- session timeouts
