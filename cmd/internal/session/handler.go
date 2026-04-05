@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os/exec"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/creack/pty"
 	gliderssh "github.com/gliderlabs/ssh"
 
+	"github.com/adinahhh/portfolio-ssh/cmd/internal/audit"
 	"github.com/adinahhh/portfolio-ssh/cmd/internal/auth"
 	"github.com/adinahhh/portfolio-ssh/cmd/internal/key"
 )
@@ -25,6 +27,7 @@ type Config struct {
 	KeyStore       key.Store
 	ChallengeStore *auth.ChallengeStore
 	ChallengeTTL   time.Duration
+	AuditLogger    *audit.Logger
 }
 
 func NewHandler(cfg Config) func(gliderssh.Session) {
@@ -36,6 +39,13 @@ func NewHandler(cfg Config) func(gliderssh.Session) {
 	}
 
 	return func(s gliderssh.Session) {
+		ip, _, _ := net.SplitHostPort(s.RemoteAddr().String())
+
+		if cfg.AuditLogger != nil {
+			cfg.AuditLogger.Connected(ip)
+			defer cfg.AuditLogger.Disconnected(ip)
+		}
+
 		ptyReq, winCh, ok := s.Pty()
 		if !ok {
 			io.WriteString(s, "A TTY is required.\r\n")
@@ -50,6 +60,9 @@ func NewHandler(cfg Config) func(gliderssh.Session) {
 		defer timeout.Stop()
 
 		if err := runAuth(s, cfg); err != nil {
+			if cfg.AuditLogger != nil {
+				cfg.AuditLogger.AuthFailure(ip, "", err.Error())
+			}
 			fmt.Fprintf(s, "\r\nAuthentication failed: %v\r\n", err)
 			return
 		}
@@ -88,9 +101,11 @@ func NewHandler(cfg Config) func(gliderssh.Session) {
 	}
 }
 
+// runAuth is for returning users who were previously authenticated
 func runAuth(s gliderssh.Session, cfg Config) error {
-	io.WriteString(s, "\r\nWelcome! To access the portfolio, you must prove ownership of your SSH key.\r\n\r\n")
-	io.WriteString(s, "Paste your SSH public key (e.g. contents of ~/.ssh/id_ed25519.pub):\r\n> ")
+	ip, _, _ := net.SplitHostPort(s.RemoteAddr().String())
+
+	io.WriteString(s, "\r\nWelcome! To continue, paste your SSH public key (e.g. contents of ~/.ssh/id_ed25519.pub):\r\n> ")
 
 	pubKeyLine, err := readLine(s)
 	if err != nil {
@@ -108,6 +123,9 @@ func runAuth(s gliderssh.Session, cfg Config) error {
 			return fmt.Errorf("failed to check key store: %w", err)
 		}
 		if known {
+			if cfg.AuditLogger != nil {
+				cfg.AuditLogger.AuthSuccess(ip, pubKeyLine, true)
+			}
 			io.WriteString(s, "\r\nWelcome back! Launching my portfolio...\r\n\r\n")
 			return nil
 		}
@@ -155,6 +173,10 @@ func runAuth(s gliderssh.Session, cfg Config) error {
 
 	if cfg.KeyStore != nil {
 		_ = cfg.KeyStore.Add(pubKeyLine)
+	}
+
+	if cfg.AuditLogger != nil {
+		cfg.AuditLogger.AuthSuccess(ip, pubKeyLine, false)
 	}
 
 	io.WriteString(s, "\r\nVerification successful! Launching portfolio...\r\n\r\n")

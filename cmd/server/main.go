@@ -16,6 +16,7 @@ import (
 	gliderssh "github.com/gliderlabs/ssh"
 	gossh "golang.org/x/crypto/ssh"
 
+	"github.com/adinahhh/portfolio-ssh/cmd/internal/audit"
 	"github.com/adinahhh/portfolio-ssh/cmd/internal/key"
 	"github.com/adinahhh/portfolio-ssh/cmd/internal/ratelimit"
 	"github.com/adinahhh/portfolio-ssh/cmd/internal/session"
@@ -35,15 +36,22 @@ func main() {
 
 	hostKeyPath := dataDir + "/host_key"
 	knownKeysPath := dataDir + "/known_keys.txt"
+	auditLogPath := dataDir + "/audit.log"
 
 	signer, err := loadOrGenerateHostKey(hostKeyPath, dataDir)
 	if err != nil {
 		log.Fatalf("host key: %v", err)
 	}
 
+	auditLogger, err := audit.NewLogger(auditLogPath)
+	if err != nil {
+		log.Fatalf("audit logger: %v", err)
+	}
+
 	handler := session.NewHandler(session.Config{
-		AppPath:  appPath,
-		KeyStore: key.NewFileStore(knownKeysPath),
+		AppPath:     appPath,
+		KeyStore:    key.NewFileStore(knownKeysPath),
+		AuditLogger: auditLogger,
 	})
 
 	srv := &gliderssh.Server{

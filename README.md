@@ -2,11 +2,11 @@
 
 A custom SSH server written in Go that serves a terminal-based portfolio application built with Python and Textual.
 
-Users can connect via SSH, complete a cryptographic challenge to prove ownership of their SSH key, and then interact with the portfolio directly in their terminal.
+New users can connect via SSH, complete a cryptographic challenge to prove ownership of their SSH key, and then interact with the portfolio directly in their terminal. Returning users skip authentication.
 
 ---
 
-## ✨ Overview
+## Overview
 
 This project is part of a multi-layered portfolio system:
 
@@ -17,7 +17,7 @@ This project is part of a multi-layered portfolio system:
 The goal is to create a unique, developer-focused portfolio experience that can be accessed via:
 
 ```bash
-ssh guest@mydomain.com
+ssh guest@ssh.ziltonportfolio.io
 ``` 
 
 ### Flow
