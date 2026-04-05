@@ -43,8 +43,9 @@ This ensures that users prove ownership of their SSH key without requiring a web
     ```ssh localhost -p 2222```
 
 3. Complete the challenge
-- Paste your public key (~/.ssh/id_ed25519.pub)
-- Sign the challenge in another terminal:
+- Paste your public SSH key 
+    ```cat ~/.ssh/id_ed25519.pub```
+- Sign the challenge in a third terminal:
 ```
 printf '%s' "<challenge>" | ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file
 ```
