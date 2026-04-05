@@ -101,9 +101,21 @@ func runAuth(s gliderssh.Session, cfg Config) error {
 		return errors.New("empty public key")
 	}
 
+	// Returning users bypass the challenge, go straight to tui
+	if cfg.KeyStore != nil {
+		known, err := cfg.KeyStore.Has(pubKeyLine)
+		if err != nil {
+			return fmt.Errorf("failed to check key store: %w", err)
+		}
+		if known {
+			io.WriteString(s, "\r\nWelcome back! Launching my portfolio...\r\n\r\n")
+			return nil
+		}
+	}
+
 	challenge, err := cfg.ChallengeStore.Issue()
 	if err != nil {
-		return fmt.Errorf("failed to generate challenge: %w", err)
+		return fmt.Errorf("failed to generate a challenge: %w", err)
 	}
 
 	fmt.Fprintf(s,
