@@ -21,14 +21,18 @@ const (
 )
 
 type Config struct {
-	AppPath      string
-	KeyStore     key.Store
-	ChallengeTTL time.Duration
+	AppPath        string
+	KeyStore       key.Store
+	ChallengeStore *auth.ChallengeStore
+	ChallengeTTL   time.Duration
 }
 
 func NewHandler(cfg Config) func(gliderssh.Session) {
 	if cfg.ChallengeTTL == 0 {
 		cfg.ChallengeTTL = defaultChallengeTTL
+	}
+	if cfg.ChallengeStore == nil {
+		cfg.ChallengeStore = auth.NewChallengeStore(cfg.ChallengeTTL)
 	}
 
 	return func(s gliderssh.Session) {
@@ -97,7 +101,7 @@ func runAuth(s gliderssh.Session, cfg Config) error {
 		return errors.New("empty public key")
 	}
 
-	challenge, err := auth.NewChallenge(cfg.ChallengeTTL)
+	challenge, err := cfg.ChallengeStore.Issue()
 	if err != nil {
 		return fmt.Errorf("failed to generate challenge: %w", err)
 	}
@@ -128,8 +132,8 @@ func runAuth(s gliderssh.Session, cfg Config) error {
 		return errors.New("no signature provided")
 	}
 
-	if time.Now().After(challenge.ExpiresAt) {
-		return errors.New("challenge expired")
+	if err := cfg.ChallengeStore.Consume(challenge.Value); err != nil {
+		return err
 	}
 
 	sigBlock := strings.Join(sigLines, "\n")

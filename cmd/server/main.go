@@ -18,26 +18,38 @@ import (
 	"github.com/adinahhh/portfolio-ssh/cmd/internal/session"
 )
 
-const hostKeyPath = "cmd/internal/data/host_key"
+func getenv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
 
 func main() {
-	signer, err := loadOrGenerateHostKey(hostKeyPath)
+	appPath := getenv("PORTFOLIO_APP_PATH", "/Users/adinah/Projects/portfolio/.venv/bin/portfolio")
+	dataDir := getenv("PORTFOLIO_DATA_DIR", "cmd/internal/data")
+	addr := getenv("PORTFOLIO_ADDR", ":2222")
+
+	hostKeyPath := dataDir + "/host_key"
+	knownKeysPath := dataDir + "/known_keys.txt"
+
+	signer, err := loadOrGenerateHostKey(hostKeyPath, dataDir)
 	if err != nil {
 		log.Fatalf("host key: %v", err)
 	}
 
 	handler := session.NewHandler(session.Config{
-		AppPath:  "/Users/adinah/Projects/portfolio/.venv/bin/portfolio",
-		KeyStore: key.NewFileStore("cmd/internal/data/known_keys.txt"),
+		AppPath:  appPath,
+		KeyStore: key.NewFileStore(knownKeysPath),
 	})
 
 	srv := &gliderssh.Server{
-		Addr:        ":2222",
+		Addr:        addr,
 		Handler:     handler,
 		HostSigners: []gliderssh.Signer{signer},
 	}
 
-	ln, err := net.Listen("tcp", ":2222")
+	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatalf("listen: %v", err)
 	}
@@ -90,7 +102,7 @@ func (c *trackedConn) Close() error {
 	return c.Conn.Close()
 }
 
-func loadOrGenerateHostKey(path string) (gossh.Signer, error) {
+func loadOrGenerateHostKey(path, dataDir string) (gossh.Signer, error) {
 	if data, err := os.ReadFile(path); err == nil {
 		block, _ := pem.Decode(data)
 		if block != nil {
@@ -108,7 +120,7 @@ func loadOrGenerateHostKey(path string) (gossh.Signer, error) {
 		return nil, err
 	}
 
-	_ = os.MkdirAll("cmd/internal/data", 0o700)
+	_ = os.MkdirAll(dataDir, 0o700)
 	if err := os.WriteFile(path, pem.EncodeToMemory(block), 0o600); err != nil {
 		return nil, err
 	}
