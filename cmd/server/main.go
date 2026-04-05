@@ -32,7 +32,7 @@ func getenv(key, fallback string) string {
 func main() {
 	appPath := getenv("PORTFOLIO_APP_PATH", "/Users/adinah/Projects/portfolio/.venv/bin/portfolio")
 	dataDir := getenv("PORTFOLIO_DATA_DIR", "cmd/internal/data")
-	addr := getenv("PORTFOLIO_ADDR", ":2222")
+	addr := getenv("PORTFOLIO_ADDR", ":22")
 
 	hostKeyPath := dataDir + "/host_key"
 	knownKeysPath := dataDir + "/known_keys.txt"
