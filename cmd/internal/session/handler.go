@@ -101,11 +101,15 @@ func NewHandler(cfg Config) func(gliderssh.Session) {
 	}
 }
 
-// runAuth is for returning users who were previously authenticated
 func runAuth(s gliderssh.Session, cfg Config) error {
 	ip, _, _ := net.SplitHostPort(s.RemoteAddr().String())
 
-	io.WriteString(s, "\r\nWelcome! To continue, paste your SSH public key (e.g. contents of ~/.ssh/id_ed25519.pub):\r\n> ")
+	io.WriteString(s, "\r\nWelcome! To continue, please paste your SSH public key below.\r\n\r\n"+
+		"If you don't have one yet, open another terminal and run:\r\n"+
+		"    ssh-keygen -t ed25519\r\n\r\n"+
+		"Then copy your public key by running:\r\n"+
+		"    cat ~/.ssh/id_ed25519.pub\r\n\r\n"+
+		"And paste it here:\r\n> ")
 
 	pubKeyLine, err := readLine(s)
 	if err != nil {
@@ -126,7 +130,7 @@ func runAuth(s gliderssh.Session, cfg Config) error {
 			if cfg.AuditLogger != nil {
 				cfg.AuditLogger.AuthSuccess(ip, pubKeyLine, true)
 			}
-			io.WriteString(s, "\r\nWelcome back! Launching my portfolio...\r\n\r\n")
+			io.WriteString(s, "\r\nWelcome back! Launching my portfolio now...\r\n\r\n")
 			return nil
 		}
 	}
@@ -137,11 +141,14 @@ func runAuth(s gliderssh.Session, cfg Config) error {
 	}
 
 	fmt.Fprintf(s,
-		"\r\nSign this challenge with your private key.\r\n"+
-			"Run this in another terminal (replace the key path if needed):\r\n\r\n"+
-			"    printf '%%s' %s | ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file\r\n\r\n"+
-			"Then paste the full signature block below, including the\r\n"+
-			"-----BEGIN SSH SIGNATURE----- and -----END SSH SIGNATURE----- lines:\r\n",
+		"\r\nTo verify you own this public key, please sign the challenge below using your private key.\r\n\r\n"+
+			"Your private key never leaves your machine. This step only generates a signature and is safe to share.\r\n\r\n"+
+			"Open a second terminal tab and paste this command exactly as shown:\r\n\r\n"+
+			"    printf '%%s' '%s' | ssh-keygen -Y sign -f ~/.ssh/id_ed25519 -n file\r\n\r\n"+
+			"Then paste the full signature block below, including:\r\n"+
+			"    -----BEGIN SSH SIGNATURE-----\r\n"+
+			"    -----END SSH SIGNATURE-----\r\n\r\n"+
+			"> ",
 		challenge.Value,
 	)
 
