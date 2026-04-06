@@ -73,7 +73,7 @@ func NewHandler(cfg Config) func(gliderssh.Session) {
 
 		ptmx, err := pty.Start(cmd)
 		if err != nil {
-			io.WriteString(s, "Failed to start portfolio app.\r\n")
+			fmt.Fprintf(s, "Failed to start portfolio app: %v\r\n", err)
 			return
 		}
 		defer ptmx.Close()
