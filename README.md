@@ -12,13 +12,18 @@ This project is part of a multi-layered portfolio system:
 
 - **portfolio-tui** → Terminal UI built with Python + Textual  
 - **portfolio-ssh** → Custom SSH server (this repo)  
-- **portfolio-web** → Web version (planned)
+- **portfolio-web** → Web version
 
 The goal is to create a unique, developer-focused portfolio experience that can be accessed via:
 
 ```bash
 ssh ziltonportfolio.io
 ``` 
+
+or in the browser:
+```bash
+ziltonportfolio.io
+```
 
 ### Flow
 1. User connects via SSH
